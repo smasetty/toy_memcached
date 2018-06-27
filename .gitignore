@@ -1,0 +1,9 @@
+Makefile
+tags
+cscope.*
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+cmake_install.cmake
+*.a
+memcached
