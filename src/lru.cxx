@@ -81,13 +81,11 @@ static struct Item* TryEvictItem(int slabClassID)
     return item;
 }
 
-int LruCacheInsert(uint64_t key, uint32_t bufLen, void* buf)
+int LruCacheInsert(std::string& key, std::string& value, int expiry,
+		struct Item* itemOut)
 {
-    int slabClassID = GetSlabClassID(bufLen);
+    int slabClassID = GetSlabClassID(key.length() + value.length());
     struct Item* item = nullptr;
-
-    if (!buf)
-        return -1;
 
     if (slabClassID < 0)
         return -1;
@@ -122,6 +120,7 @@ int LruCacheInsert(uint64_t key, uint32_t bufLen, void* buf)
      */
 
     lruInstance->cacheItems.push_front(item);
+    itemOut = item;
 
     return 0;
 }

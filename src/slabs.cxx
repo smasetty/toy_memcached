@@ -29,6 +29,16 @@ static SlabClass SlabClass[MAX_SLABS];
 
 #define ALIGN_MOD(a, x) (((x)+a) - ((x)%a))
 
+int GetItem(struct Item* item)
+{
+	return ++(item->refCount);
+}
+
+int PutItem(struct Item* item)
+{
+	return --(item->refCount);
+}
+
 /*
  * TODO: how does the user send us the timeout/expiration
  */
@@ -50,6 +60,7 @@ int ConstructItem(struct Item* item, uint64_t itemExpiry)
      * if this is the least recently used
      */
     item->expiry = itemExpiry;
+    item->refCount = 1;
     return 0;
 }
 
