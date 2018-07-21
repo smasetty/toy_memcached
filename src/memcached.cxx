@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <string>
 #include "slabs.h"
+#include "log.h"
 
 std::unordered_map<std::string, struct Item*> hash;
 std::mutex hashLock;
@@ -72,8 +73,11 @@ int MemcachedGet(std::string& key, std::string* value)
 		return -1;
 
 	struct Item* item = hashGetItem(key);
-	if (!item)
+    if (!item) {
+        LogMsg(LOG_HIGH, "%s: Item not in Hash", __func__);
+
 		return -1;
+    }
 
 	if (value->length() < item->dataLength)
 		value->resize(item->dataLength);
