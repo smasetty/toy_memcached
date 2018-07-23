@@ -44,6 +44,7 @@ int PutItem(struct Item* item)
  */
 int ConstructItem(struct Item* item, uint64_t itemExpiry)
 {
+    INIT_LIST_HEAD(&item->node);
     /*
      * Do the timestamping here, We could either use the realtime clock or
      * the monotonic clock. The monotonic clock may(not) work during system

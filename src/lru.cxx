@@ -6,8 +6,10 @@
 #include "slabs.h"
 
 struct LruCache {
+    struct list_head head;
+    int listSize;
     uint64_t active_timestamp;
-    std::list<struct Item*> cacheItems;
+    //std::list<struct Item*> cacheItems;
     std::mutex cacheLock;
 };
 
@@ -17,6 +19,12 @@ struct LruCache lru[MAX_SLABS];
 
 void LruCacheInit()
 {
+    for (int i = 0; i < MAX_SLABS; i++) {
+        struct LruCache *lruInstance = &lru[i];
+        INIT_LIST_HEAD(&lruInstance->head);
+        lruInstance->listSize = 0;
+    }
+
     return;
 }
 
@@ -36,24 +44,26 @@ static bool ItemExpired(struct Item* item)
 
 static struct Item* GetExpiredItem(uint32_t slabClassID)
 {
-    std::list<struct Item*>::reverse_iterator it;
-    struct LruCache *lruInstance = &lru[slabClassID];
+	std::list<struct Item*>::reverse_iterator it;
+	struct LruCache *lruInstance = &lru[slabClassID];
+	struct list_head* pos;
+	struct Item* item;
+    int count = 5;
 
-    if (!lruInstance->cacheItems.size())
-        return nullptr;
+	if (!lruInstance->listSize)
+		return nullptr;
 
-    /*
-     * Start from the end of the list(lru) and pluck out an expired entry
-     */
-    for (it = lruInstance->cacheItems.rbegin();
-            it !=lruInstance->cacheItems.rend(); it++) {
-        struct Item* item = *it;
+	list_for_each_prev(pos, &lruInstance->head) {
+		item = list_entry(pos, struct Item, node);
 
-        if (ItemExpired(item))
-            return item;
-    }
+		if (ItemExpired(item))
+			return item;
 
-    return nullptr;
+        if (!(--count))
+            break;
+	}
+
+	return nullptr;
 }
 
 /*
@@ -64,7 +74,7 @@ static bool IsLruFull(int slabClassID)
 {
     struct LruCache *lruInstance = &lru[slabClassID];
 
-    return lruInstance->cacheItems.size() == MAX_ITEMS_PER_LRU;
+    return lruInstance->listSize == MAX_ITEMS_PER_LRU;
 }
 
 /*
@@ -75,8 +85,8 @@ static struct Item* TryEvictItem(int slabClassID)
     struct Item* item = nullptr;
     struct LruCache *lruInstance = &lru[slabClassID];
 
-    item = lruInstance->cacheItems.back();
-    lruInstance->cacheItems.pop_back();
+	item = list_last_entry(&lruInstance->head, struct Item, node);
+    list_del_tail(&lruInstance->head);
 
     return item;
 }
@@ -119,7 +129,7 @@ int LruCacheInsert(std::string& key, std::string& value, int expiry,
      * about this to handle different input types
      */
 
-    lruInstance->cacheItems.push_front(item);
+	list_add(&item->node, &lruInstance->head);
     itemOut = item;
 
     return 0;
