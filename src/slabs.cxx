@@ -220,18 +220,22 @@ struct Item* AllocItemFromSlab(int slabClassID)
 
     slab = &SlabClass[slabClassID];
 
+    slab->slabLock.lock();
     /*
      * Try to allocate a backend page from the pool if we are out of freeItems
      */
     if (!slab->freeItems.size())
         TryGetMorePages(slabClassID);
 
-    if (!slab->freeItems.size())
-        return nullptr;
+    if (!slab->freeItems.size()) {
+	    slab->slabLock.unlock();
+	    return nullptr;
+    }
 
     item = slab->freeItems.front();
     slab->freeItems.pop_front();
 
+    slab->slabLock.unlock();
     return item;
 }
 

@@ -13,7 +13,6 @@ struct LruCache {
     struct list_head head;
     int listSize;
     uint64_t active_timestamp;
-    //std::list<struct Item*> cacheItems;
     std::mutex cacheLock;
 };
 
@@ -46,6 +45,10 @@ static bool ItemExpired(struct Item* item)
     return (tsCurrent.tv_sec >= item->expiry);
 }
 
+/*
+ * Internal helper function to retreive an item with an expired timestamp
+ * if there is one. should be called with the instance lock held
+ */
 static struct Item* GetExpiredItem(uint32_t slabClassID)
 {
 	std::list<struct Item*>::reverse_iterator it;

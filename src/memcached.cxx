@@ -148,9 +148,9 @@ int MemcachedDelete(std::string& key)
 // TODO
 // Logging
 // Add custom doubly list implementation to fix LRU code
+// The actualy copy of the Key-Value pairs to memcached
 
 // API documentation and return types
-// The actualy copy of the Key-Value pairs to memcached
 // complete TODOs
 // Item destruction and cleaning up LRU
 // slab locking
