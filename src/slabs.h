@@ -41,8 +41,14 @@ int PutItem(struct Item* item);
 
 struct Item* AllocItemFromSlab(int slabClassID);
 
+void LruCacheInit();
+
+void LruCacheDestroy();
+
 int LruCacheInsert(std::string& key, std::string& value, int expiry,
 		struct Item* itemOut);
+
+void LruTouchItem(struct Item* item);
 
 #define typeof __typeof__
 

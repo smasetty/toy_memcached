@@ -123,12 +123,16 @@ void SlabClassDestroy()
     for(int i = 0; i < MAX_SLABS; i++)
         FreePages(i);
 
+    MempoolDestroy();
     return;
 }
 
+#define MAX_MEMPOOL_PAGES 200
 int SlabClassInit()
 {
     int chunkSize  = INITIAL_CHUNK_SIZE;
+
+    MempoolInit(MAX_MEMPOOL_PAGES);
 
     for(int i = 0; i < MAX_SLABS; i++) {
         struct SlabClass* slab = &SlabClass[i];

@@ -2,7 +2,11 @@
 #include <list>
 #include <mutex>
 #include <time.h>
+#include <stdio.h>
+#include <cstdint>
+#include <cstring>
 #include "mempool.h"
+#include "log.h"
 #include "slabs.h"
 
 struct LruCache {
@@ -80,10 +84,18 @@ static bool IsLruFull(int slabClassID)
 /*
  * This function should  be called with the lruInstance cacheLock held
  */
-static struct Item* TryEvictItem(int slabClassID)
+static struct Item* EvictOneItem(int slabClassID)
 {
     struct Item* item = nullptr;
     struct LruCache *lruInstance = &lru[slabClassID];
+
+    if (!lruInstance->listSize) {
+	    /*
+	     * All hell breaks lose
+	     */
+	    LogMsg(LOG_HIGH, "Something is fishy \n");
+	    return nullptr;
+    }
 
 	item = list_last_entry(&lruInstance->head, struct Item, node);
     list_del_tail(&lruInstance->head);
@@ -121,16 +133,39 @@ int LruCacheInsert(std::string& key, std::string& value, int expiry,
         item = AllocItemFromSlab(slabClassID);
 
     if (!item)
-        item = TryEvictItem(slabClassID);
+        item = EvictOneItem(slabClassID);
 
     /*
-     * TODO:
-     * copy over the key and the value pair to the item, need to think a bit
-     * about this to handle different input types
+     * Copy over the raw key and value pairs to the item structure
      */
+    item->keyLength = key.length();
+    std::memcpy(&item->data[0], key.c_str(), item->keyLength);
 
-	list_add(&item->node, &lruInstance->head);
+    item->dataLength = value.length();
+    std::memcpy(&item->data[item->keyLength], value.c_str(), item->dataLength);
+
+
+    list_add(&item->node, &lruInstance->head);
     itemOut = item;
 
     return 0;
+}
+
+void LruTouchItem(struct Item* item)
+{
+	if (!item)
+		return;
+
+	struct LruCache *lruInstance = &lru[item->slabClassID];
+
+	/*
+	 * Using a simple RAII style lock gaurd
+	 */
+	std::lock_guard<std::mutex> gaurd(lruInstance->cacheLock);
+
+	/*
+	 * Unlink and move the node to the head of the list
+	 */
+	list_del(&item->node);
+	list_add(&item->node, &lruInstance->head);
 }

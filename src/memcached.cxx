@@ -7,17 +7,50 @@
 
 std::unordered_map<std::string, struct Item*> hash;
 std::mutex hashLock;
+std::mutex globalLock;
+static int initialized;
 
-void MemcachedDestroy()
+void MemcachedCleanUp()
 {
+	globalLock.lock();
 
+	if (!initialized) {
+		globalLock.unlock();
+		return;
+	}
+
+	LruCacheDestroy();
+
+	SlabClassDestroy();
+
+	globalLock.unlock();
 }
 
 int MemcachedInit()
 {
-	const int atExitRet = std::atexit(MemcachedDestroy);
+	globalLock.lock();
+
+	if (initialized)  {
+		globalLock.unlock();
+		return -1;
+	}
+
+	const int atExitRet = std::atexit(MemcachedCleanUp);
 	if (atExitRet)
 		return -1;
+
+	/*
+	 * Initialize a rudimentary slab allocator, backed by a mempool
+	 * of pages
+	 */
+	SlabClassInit();
+
+	/*
+	 * Implementation of the "The Least Recently Used" part of the cache
+	 */
+	LruCacheInit();
+
+	globalLock.unlock();
 
 	return 0;
 }
@@ -49,11 +82,11 @@ static inline int hashInsert(std::string& key, struct Item* item)
 
 int MemcachedInsert(std::string& key, std::string& value, int expiry)
 {
-	struct Item* item;
+	struct Item* item  = nullptr;
 
 	item = hashGetItem(key);
 	if (item) {
-		//update LRU; TODO
+		LruTouchItem(item);
 		PutItem(item);
 		return 0;
 	}
@@ -73,16 +106,23 @@ int MemcachedGet(std::string& key, std::string* value)
 		return -1;
 
 	struct Item* item = hashGetItem(key);
-    if (!item) {
-        LogMsg(LOG_HIGH, "%s: Item not in Hash", __func__);
-
+	if (!item) {
+		LogMsg(LOG_HIGH, "%s: Item not in Hash", __func__);
 		return -1;
-    }
+	}
+
+	/*
+	 * On Item access move the item to the top of LRU, this will help
+	 * keep least frequently used elements at the rear end of the list
+	 * and will make the eviction process simpler
+	 */
+	LruTouchItem(item);
 
 	if (value->length() < item->dataLength)
 		value->resize(item->dataLength);
 
-	value->assign(&item->data[0], &item->data[0] + item->dataLength);
+	value->assign(&item->data[item->keyLength],
+			&item->data[item->keyLength] + item->dataLength);
 
 	PutItem(item);
 	return 0;
@@ -108,6 +148,7 @@ int MemcachedDelete(std::string& key)
 // TODO
 // Logging
 // Add custom doubly list implementation to fix LRU code
+
 // API documentation and return types
 // The actualy copy of the Key-Value pairs to memcached
 // complete TODOs
